@@ -1,9 +1,8 @@
 import { Client } from 'boardgame.io/react';
 
-import { TicTacToe } from './Game';
+import { HighSociety } from './Game';
 import { Board } from './Board';
-import './App.css';
 
-const App = Client({ game: TicTacToe, board: Board });
+const App = Client({ game: HighSociety, board: Board, numPlayers: 3 });
 
 export default App;

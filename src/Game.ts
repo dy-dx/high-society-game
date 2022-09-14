@@ -1,70 +1,357 @@
 import { INVALID_MOVE } from 'boardgame.io/core';
-import type { Game } from 'boardgame.io';
+import type { Game, Ctx } from 'boardgame.io';
 
-export interface TicTacToeState {
-  cells: (null | string)[];
+const moneyCards = [1, 2, 3, 4, 6, 8, 10, 12, 15, 20, 25];
+
+export enum StatusType {
+  Luxury = 'LUXURY',
+  Prestige = 'PRESTIGE',
+  Disgrace = 'DISGRACE',
+}
+export enum StatusOp {
+  Add = 'ADD',
+  Multiply = 'MULTIPLY',
+  Discard = 'DISCARD',
+}
+export interface StatusCard {
+  name: string;
+  value: number;
+  type: StatusType;
+  op: StatusOp;
+}
+const luxuryCards: StatusCard[] = [
+  { value: 1, name: 'EAU DE PARFUM' },
+  { value: 2, name: 'CHAMPAGNE' },
+  { value: 3, name: 'HAUTE CUISINE' },
+  { value: 4, name: 'CASINO' },
+  { value: 5, name: 'COUTURE' },
+  { value: 6, name: 'VACANCES' },
+  { value: 7, name: `OBJET D'ART` },
+  { value: 8, name: 'BIJOUX' },
+  { value: 9, name: 'DRESSAGE' },
+  { value: 10, name: 'TOURNEE EN VOILER' },
+].map((c) => ({ ...c, op: StatusOp.Add, type: StatusType.Luxury }));
+
+const prestigeCards = [
+  { value: 2, name: 'AVANT GARDE' },
+  { value: 2, name: 'BON VIVANT' },
+  { value: 2, name: 'JOIE DE VIVRE' },
+].map((c) => ({ ...c, op: StatusOp.Multiply, type: StatusType.Prestige }));
+
+const disgraceCards = [
+  { op: StatusOp.Discard, value: -1, name: 'FAUX PAS!' },
+  { op: StatusOp.Multiply, value: 0.5, name: 'SCANDALE!' },
+  { op: StatusOp.Add, value: -5, name: 'PASSE!' },
+].map((c) => ({ ...c, type: StatusType.Disgrace }));
+
+const deck: StatusCard[] = [...luxuryCards, ...prestigeCards, ...disgraceCards];
+
+export interface PlayerState {
+  name: string;
+  hand: number[];
+  bidMoney: number[];
+  spentMoney: number[];
+  statusCards: StatusCard[];
+  hasPassed: boolean;
 }
 
-export const TicTacToe: Game<TicTacToeState> = {
-  setup: () => ({ cells: Array(9).fill(null) }),
+export interface HighSocietyState {
+  players: PlayerState[];
+  deck: StatusCard[];
+  currentBid: number;
+}
+
+export const HighSociety: Game<HighSocietyState> = {
+  setup: (ctx) => {
+    const players = ctx.playOrder.map((_, i) => {
+      return {
+        name: `player_${i}`,
+        hand: moneyCards.slice(),
+        bidMoney: [],
+        spentMoney: [],
+        statusCards: [],
+        hasPassed: false,
+      };
+    });
+    return { players, deck: ctx.random!.Shuffle(deck), currentBid: 0 };
+  },
 
   turn: {
-    moveLimit: 1,
+    order: {
+      first: () => 0,
+      next: (G, ctx) => {
+        const activePlayers = ctx.playOrder
+          .map((_id, playOrderPos) => ({
+            playOrderPos,
+            hasPassed: G.players[playOrderPos].hasPassed,
+          }))
+          .filter((p) => !p.hasPassed);
+
+        if (!activePlayers.length) {
+          throw new Error(`Can't determine next player`);
+        }
+
+        let nextActivePlayer = activePlayers.find((p) => p.playOrderPos > ctx.playOrderPos);
+        if (!nextActivePlayer) {
+          nextActivePlayer = activePlayers[0];
+        }
+        return nextActivePlayer.playOrderPos;
+      },
+    },
   },
 
   moves: {
-    clickCell: (G, ctx, id) => {
-      if (G.cells[id] !== null) {
+    bid: (G, ctx, cardIdxs: number[]) => {
+      const { hand, bidMoney } = getCurrentPlayer(G, ctx);
+      const idxs = sortArray(cardIdxs.slice());
+      const cardValues = idxs.map((i) => hand[i]);
+      if (cardValues.some((v) => !v)) {
         return INVALID_MOVE;
       }
-      G.cells[id] = ctx.currentPlayer;
+
+      const sum = sumArray(cardValues) + sumArray(bidMoney);
+      if (sum <= G.currentBid) {
+        return INVALID_MOVE;
+      }
+      for (let i = idxs.length - 1; i >= 0; i -= 1) {
+        const idx = idxs[i];
+        bidMoney.push(hand[idx]);
+        hand.splice(idx, 1);
+      }
+      sortArray(bidMoney);
+      G.currentBid = sum;
+      ctx.events!.endTurn();
+    },
+    pass: (G, ctx) => {
+      const player = getCurrentPlayer(G, ctx);
+      if (player.hasPassed || canPlayerTake(player, G)) {
+        return INVALID_MOVE;
+      }
+      player.hasPassed = true;
+      const numBidCards = player.bidMoney.length;
+      for (let i = 0; i < numBidCards; i += 1) {
+        player.hand.push(player.bidMoney.pop()!);
+      }
+      sortArray(player.hand);
+      ctx.events!.endTurn();
+    },
+    take: (G, ctx) => {
+      const currentPlayer = getCurrentPlayer(G, ctx);
+      if (!canPlayerTake(currentPlayer, G)) {
+        return INVALID_MOVE;
+      }
+      const card = G.deck[0];
+      currentPlayer.statusCards.push(card);
+      G.deck.splice(0, 1);
+      G.currentBid = 0;
+      G.players.forEach((p) => {
+        p.hasPassed = false;
+        if (card.type === StatusType.Disgrace) {
+          if (p === currentPlayer) {
+            refundPlayerBid(p);
+          } else {
+            spendPlayerBid(p);
+          }
+        } else if (p === currentPlayer) {
+          spendPlayerBid(p);
+        }
+      });
+
+      if (mustPlayerDiscard(currentPlayer)) {
+        discardLowest(currentPlayer);
+      }
+
+      ctx.events!.endTurn({ next: ctx.currentPlayer });
+    },
+    // Doesn't take args. You always want to discard the lowest luxury card.
+    discard: (G, ctx) => {
+      const p = getCurrentPlayer(G, ctx);
+      if (!p.statusCards.find((c) => c.op === StatusOp.Discard)) {
+        return INVALID_MOVE;
+      }
+      let lowestLuxCardIdx = -1;
+      p.statusCards.forEach((c, idx) => {
+        if (c.type !== StatusType.Luxury) return;
+        if (lowestLuxCardIdx === -1) {
+          lowestLuxCardIdx = idx;
+        } else {
+          const cur = p.statusCards[lowestLuxCardIdx];
+          if (c.value < cur.value) {
+            lowestLuxCardIdx = idx;
+          }
+        }
+      });
+      if (lowestLuxCardIdx === -1) {
+        return INVALID_MOVE;
+      }
+      p.statusCards.splice(lowestLuxCardIdx, 1);
+      const fauxPasIdx = p.statusCards.findIndex((c) => c.op === StatusOp.Discard);
+      p.statusCards.splice(fauxPasIdx, 1);
     },
   },
 
   endIf: (G, ctx) => {
-    if (IsVictory(G.cells)) {
-      return { winner: ctx.currentPlayer };
+    if (!isGameOver(G)) {
+      return;
     }
-    if (IsDraw(G.cells)) {
+
+    const winner = getWinner(G, ctx);
+    if (!winner) {
       return { draw: true };
     }
+    return { winner };
   },
 
   ai: {
     enumerate: (G, ctx) => {
-      let moves = [];
-      for (let i = 0; i < 9; i++) {
-        if (G.cells[i] === null) {
-          moves.push({ move: 'clickCell', args: [i] });
-        }
+      if (ctx.gameover) {
+        return [];
       }
+      const moves = [];
+      const p = getCurrentPlayer(G, ctx);
+      if (canPlayerTake(p, G)) {
+        moves.push({ move: 'take' });
+        // if it's not a disgrace card, and you can take it, then take it
+        if (G.deck[0].type !== StatusType.Disgrace) {
+          return moves;
+        }
+      } else {
+        moves.push({ move: 'pass' });
+      }
+      // options for bidding a single card
+      const playerCurrentBid = sumArray(p.bidMoney);
+      p.hand.forEach((c, idx) => {
+        const proposedBid = c + playerCurrentBid;
+        // don't let the ai bid more than 40
+        if (proposedBid > G.currentBid && proposedBid < 40) {
+          moves.push({ move: 'bid', args: [[idx]] });
+        }
+      });
       return moves;
     },
   },
 };
 
-/** Return true if `cells` is in a winning configuration. */
-function IsVictory(cells: (string | null)[]): boolean {
-  const positions = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
-
-  const isRowComplete = (row: number[]): boolean => {
-    const symbols = row.map((i) => cells[i]);
-    return symbols.every((i) => i !== null && i === symbols[0]);
-  };
-
-  return positions.map(isRowComplete).some((i) => i === true);
+function sumArray(arr: number[]) {
+  return arr.reduce((acc, n) => acc + n, 0);
+}
+function sortArray(arr: number[]) {
+  return arr.sort((a, b) => a - b);
 }
 
-/** Return true if all `cells` are occupied. */
-function IsDraw(cells: (null | string)[]): boolean {
-  return cells.filter((c) => c === null).length === 0;
+function getCurrentPlayer(G: HighSocietyState, ctx: Ctx) {
+  const currentPlayerIndex = parseInt(ctx.currentPlayer, 10);
+  return G.players[currentPlayerIndex];
+}
+
+function refundPlayerBid(p: PlayerState) {
+  const numBidCards = p.bidMoney.length;
+  if (numBidCards) {
+    p.hand.push(...p.bidMoney);
+    sortArray(p.hand);
+    p.bidMoney = [];
+  }
+}
+
+function spendPlayerBid(p: PlayerState) {
+  const numBidCards = p.bidMoney.length;
+  if (numBidCards) {
+    p.spentMoney.push(...p.bidMoney);
+    sortArray(p.spentMoney);
+    p.bidMoney = [];
+  }
+}
+
+export function playerScore(p: PlayerState) {
+  let score = sumArray(p.statusCards.filter((c) => c.op === StatusOp.Add).map((c) => c.value));
+  p.statusCards.filter((c) => c.op === StatusOp.Multiply).forEach((c) => (score *= c.value));
+  return score;
+}
+
+export function canPlayerTake(p: PlayerState, G: HighSocietyState) {
+  if (p.hasPassed) {
+    return false;
+  }
+  const topCard = G.deck[0];
+  if (topCard.type === StatusType.Disgrace) {
+    return true;
+  }
+  return G.players.filter((p) => !p.hasPassed).length === 1;
+}
+
+function mustPlayerDiscard(p: PlayerState) {
+  return (
+    p.statusCards.find((c) => c.op === StatusOp.Discard) &&
+    p.statusCards.find((c) => c.type === StatusType.Luxury)
+  );
+}
+
+export function mustPlayerDiscardAfterTaking(p: PlayerState, c: StatusCard) {
+  if (c.op === StatusOp.Discard) {
+    return !!p.statusCards.find((c) => c.type === StatusType.Luxury);
+  }
+  if (c.type === StatusType.Luxury) {
+    return !!p.statusCards.find((c) => c.op === StatusOp.Discard);
+  }
+  return false;
+}
+
+function discardLowest(p: PlayerState) {
+  let lowestLuxCardIdx = -1;
+  p.statusCards.forEach((c, idx) => {
+    if (c.type !== StatusType.Luxury) return;
+    if (lowestLuxCardIdx === -1) {
+      lowestLuxCardIdx = idx;
+    } else {
+      const curLowestValue = p.statusCards[lowestLuxCardIdx].value;
+      if (c.value < curLowestValue) {
+        lowestLuxCardIdx = idx;
+      }
+    }
+  });
+  if (lowestLuxCardIdx === -1) {
+    throw new Error('No luxury card to dsicard');
+  }
+  p.statusCards.splice(lowestLuxCardIdx, 1);
+  const fauxPasIdx = p.statusCards.findIndex((c) => c.op === StatusOp.Discard);
+  p.statusCards.splice(fauxPasIdx, 1);
+}
+
+function isGameOver(G: HighSocietyState): boolean {
+  const topCard = G.deck[0];
+  if (topCard.op !== StatusOp.Multiply) {
+    return false;
+  }
+  let numGreenCards = 1;
+  G.players.forEach((p) => {
+    p.statusCards.forEach((c) => {
+      if (c.op === StatusOp.Multiply) {
+        numGreenCards += 1;
+      }
+    });
+  });
+
+  return numGreenCards === 4;
+}
+
+function getWinner(G: HighSocietyState, ctx: Ctx): string | null {
+  const players = ctx.playOrder.map((id) => {
+    const p = G.players[parseInt(id, 10)];
+    return {
+      id,
+      hand: p.hand,
+      statusCards: p.statusCards,
+      remainingMoney: sumArray(p.hand),
+      score: playerScore(p),
+    };
+  });
+  // cast out poorest player(s)
+  const lowestMoney = players.sort((a, b) => a.remainingMoney - b.remainingMoney)[0].remainingMoney;
+  const remainingPlayers = players.filter((p) => p.remainingMoney > lowestMoney);
+  if (!remainingPlayers.length) {
+    return null;
+  }
+  // winner has most points (todo check for ties)
+  remainingPlayers.sort((a, b) => a.score - b.score);
+  return remainingPlayers.slice(-1)[0].id;
 }
