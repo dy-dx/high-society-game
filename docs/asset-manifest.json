@@ -1,0 +1,31 @@
+{
+  "files": {
+    "main.css": "./static/css/main.2bb30aa7.css",
+    "main.js": "./static/js/main.4431b27d.js",
+    "static/js/787.64e86d92.chunk.js": "./static/js/787.64e86d92.chunk.js",
+    "static/media/luxury-4.jpg": "./static/media/luxury-4.b78f9416b58192d3ec58.jpg",
+    "static/media/luxury-1.jpg": "./static/media/luxury-1.79ac2711ec25dff6a38d.jpg",
+    "static/media/luxury-2.jpg": "./static/media/luxury-2.6b324a4eaea83c497fc8.jpg",
+    "static/media/luxury-3.jpg": "./static/media/luxury-3.b48d9eb2eb2293d25a29.jpg",
+    "static/media/luxury-8.jpg": "./static/media/luxury-8.2784187aa40048617c7c.jpg",
+    "static/media/luxury-10.jpg": "./static/media/luxury-10.9065f647047747ef4f32.jpg",
+    "static/media/luxury-6.jpg": "./static/media/luxury-6.d126e3fd4999992f1c9a.jpg",
+    "static/media/disgrace-fauxpas.jpg": "./static/media/disgrace-fauxpas.c060f9cec85869ebb3a1.jpg",
+    "static/media/luxury-7.jpg": "./static/media/luxury-7.9c0e24b8e222a58e5ad3.jpg",
+    "static/media/disgrace-passe.jpg": "./static/media/disgrace-passe.a18276b361113063de41.jpg",
+    "static/media/prestige-avantgarde.jpg": "./static/media/prestige-avantgarde.c16cd6071789808f12d1.jpg",
+    "static/media/luxury-5.jpg": "./static/media/luxury-5.058e0a174eb15872b347.jpg",
+    "static/media/prestige-bonvivant.jpg": "./static/media/prestige-bonvivant.229cdbc88d81d710035a.jpg",
+    "static/media/luxury-9.jpg": "./static/media/luxury-9.32ed4a9efad5822ad432.jpg",
+    "static/media/prestige-joiedevivre.jpg": "./static/media/prestige-joiedevivre.a0c39a00131016d5c553.jpg",
+    "static/media/disgrace-scandale.jpg": "./static/media/disgrace-scandale.0a24672da964f57e4b0b.jpg",
+    "index.html": "./index.html",
+    "main.2bb30aa7.css.map": "./static/css/main.2bb30aa7.css.map",
+    "main.4431b27d.js.map": "./static/js/main.4431b27d.js.map",
+    "787.64e86d92.chunk.js.map": "./static/js/787.64e86d92.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.2bb30aa7.css",
+    "static/js/main.4431b27d.js"
+  ]
+}
