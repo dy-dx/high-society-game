@@ -1,3 +1,6 @@
+// dunno why these react-script types (for img imports) aren't included automatically
+/// <reference types="react-scripts" />
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 
