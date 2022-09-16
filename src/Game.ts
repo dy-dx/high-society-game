@@ -13,35 +13,54 @@ export enum StatusOp {
   Multiply = 'MULTIPLY',
   Discard = 'DISCARD',
 }
+export enum StatusCardId {
+  luxury1 = 0,
+  luxury2,
+  luxury3,
+  luxury4,
+  luxury5,
+  luxury6,
+  luxury7,
+  luxury8,
+  luxury9,
+  luxury10,
+  prestigeAvantgarde,
+  prestigeBonvivant,
+  prestigeJoiedevivre,
+  disgraceFauxpas,
+  disgracePasse,
+  disgraceScandale,
+}
 export interface StatusCard {
+  id: StatusCardId;
   name: string;
   value: number;
   type: StatusType;
   op: StatusOp;
 }
 const luxuryCards: StatusCard[] = [
-  { value: 1, name: 'EAU DE PARFUM' },
-  { value: 2, name: 'CHAMPAGNE' },
-  { value: 3, name: 'HAUTE CUISINE' },
-  { value: 4, name: 'CASINO' },
-  { value: 5, name: 'COUTURE' },
-  { value: 6, name: 'VACANCES' },
-  { value: 7, name: `OBJET D'ART` },
-  { value: 8, name: 'BIJOUX' },
-  { value: 9, name: 'DRESSAGE' },
-  { value: 10, name: 'TOURNEE EN VOILER' },
+  { value: 1, id: StatusCardId.luxury1, name: 'EAU DE PARFUM' },
+  { value: 2, id: StatusCardId.luxury2, name: 'CHAMPAGNE' },
+  { value: 3, id: StatusCardId.luxury3, name: 'HAUTE CUISINE' },
+  { value: 4, id: StatusCardId.luxury4, name: 'CASINO' },
+  { value: 5, id: StatusCardId.luxury5, name: 'COUTURE' },
+  { value: 6, id: StatusCardId.luxury6, name: 'VACANCES' },
+  { value: 7, id: StatusCardId.luxury7, name: `OBJET D'ART` },
+  { value: 8, id: StatusCardId.luxury8, name: 'BIJOUX' },
+  { value: 9, id: StatusCardId.luxury9, name: 'DRESSAGE' },
+  { value: 10, id: StatusCardId.luxury10, name: 'TOURNEÉ EN VOILIER' },
 ].map((c) => ({ ...c, op: StatusOp.Add, type: StatusType.Luxury }));
 
 const prestigeCards = [
-  { value: 2, name: 'AVANT GARDE' },
-  { value: 2, name: 'BON VIVANT' },
-  { value: 2, name: 'JOIE DE VIVRE' },
+  { value: 2, id: StatusCardId.prestigeAvantgarde, name: 'AVANT GARDE' },
+  { value: 2, id: StatusCardId.prestigeBonvivant, name: 'BON VIVANT' },
+  { value: 2, id: StatusCardId.prestigeJoiedevivre, name: 'JOIE DE VIVRE' },
 ].map((c) => ({ ...c, op: StatusOp.Multiply, type: StatusType.Prestige }));
 
 const disgraceCards = [
-  { op: StatusOp.Discard, value: -1, name: 'FAUX PAS!' },
-  { op: StatusOp.Multiply, value: 0.5, name: 'SCANDALE!' },
-  { op: StatusOp.Add, value: -5, name: 'PASSE!' },
+  { id: StatusCardId.disgraceFauxpas, op: StatusOp.Discard, value: -1, name: 'FAUX PAS!' },
+  { id: StatusCardId.disgraceScandale, op: StatusOp.Multiply, value: 0.5, name: 'SCANDALE!' },
+  { id: StatusCardId.disgracePasse, op: StatusOp.Add, value: -5, name: 'PASSÉ!' },
 ].map((c) => ({ ...c, type: StatusType.Disgrace }));
 
 const deck: StatusCard[] = [...luxuryCards, ...prestigeCards, ...disgraceCards];
@@ -158,35 +177,15 @@ export const HighSociety: Game<HighSocietyState> = {
       });
 
       if (mustPlayerDiscard(currentPlayer)) {
+        // You always want to discard the lowest luxury card.
         discardLowest(currentPlayer);
       }
 
+      ctx.playOrderPos -= 1;
+      if (ctx.playOrderPos < 0) {
+        ctx.playOrderPos = ctx.playOrder.length - 1;
+      }
       ctx.events!.endTurn({ next: ctx.currentPlayer });
-    },
-    // Doesn't take args. You always want to discard the lowest luxury card.
-    discard: (G, ctx) => {
-      const p = getCurrentPlayer(G, ctx);
-      if (!p.statusCards.find((c) => c.op === StatusOp.Discard)) {
-        return INVALID_MOVE;
-      }
-      let lowestLuxCardIdx = -1;
-      p.statusCards.forEach((c, idx) => {
-        if (c.type !== StatusType.Luxury) return;
-        if (lowestLuxCardIdx === -1) {
-          lowestLuxCardIdx = idx;
-        } else {
-          const cur = p.statusCards[lowestLuxCardIdx];
-          if (c.value < cur.value) {
-            lowestLuxCardIdx = idx;
-          }
-        }
-      });
-      if (lowestLuxCardIdx === -1) {
-        return INVALID_MOVE;
-      }
-      p.statusCards.splice(lowestLuxCardIdx, 1);
-      const fauxPasIdx = p.statusCards.findIndex((c) => c.op === StatusOp.Discard);
-      p.statusCards.splice(fauxPasIdx, 1);
     },
   },
 

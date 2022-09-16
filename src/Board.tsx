@@ -1,10 +1,12 @@
 import React from 'react';
 import type { BoardProps } from 'boardgame.io/react';
 import type { Ctx } from 'boardgame.io';
-import { HighSocietyState, StatusCard, StatusOp } from './Game';
+import type { HighSocietyState, StatusCard as IStatusCard } from './Game';
+import { StatusOp } from './Game';
 
 import Hand from './Hand';
-import Statuses from './Statuses';
+import DebugStatusCards from './DebugStatusCards';
+import StatusCard from './StatusCard';
 
 const getWinner = (ctx: Ctx): string | null => {
   if (!ctx.gameover) return null;
@@ -14,7 +16,7 @@ const getWinner = (ctx: Ctx): string | null => {
 
 interface HighSocietyProps extends BoardProps<HighSocietyState> {}
 
-function displayEffect(c: StatusCard): string {
+function displayEffect(c: IStatusCard): string {
   if (c.op === StatusOp.Add) {
     return `${c.value > 0 ? '+' : ''}${c.value}`;
   }
@@ -50,13 +52,14 @@ export const Board = ({ G, ctx, moves }: HighSocietyProps) => {
               player={p}
               isCurrentPlayer={!ctx.gameover && index === currentPlayerIndex}
             />
-            <Statuses player={p} />
+            <DebugStatusCards player={p} />
             <hr />
           </div>
         ))}
         <pre>deck size: {G.deck.length}</pre>
         {G.deck.length && (
           <div>
+            <StatusCard card={G.deck[0]} />
             <div>top card: {G.deck[0].name}</div>
             <div>type: {G.deck[0].type}</div>
             <div>effect: {displayEffect(G.deck[0])}</div>

@@ -18,7 +18,7 @@ function shortName(c: StatusCard): string {
   return `${c.value}`;
 }
 
-const Statuses = ({ player: p }: { player: PlayerState }) => {
+const DebugStatusCards = ({ player: p }: { player: PlayerState }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', marginTop: '10px' }}>
       <div
@@ -54,4 +54,4 @@ const Statuses = ({ player: p }: { player: PlayerState }) => {
     </div>
   );
 };
-export default Statuses;
+export default DebugStatusCards;
